@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Skypack Downloader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<h2>Skypack Downloader</h2>
+
+<textarea id="libs" rows="8" style="width:100%">
+react
+lodash
+</textarea>
+
+<br>
+<button onclick="start()">Download</button>
+
+<pre id="log"></pre>
+
+<script>
+async function start() {
+    const libs = document.getElementById("libs").value
+        .split("\n").map(x => x.trim()).filter(Boolean);
+
+    const zip = new JSZip();
+
+    for (const lib of libs) {
+        try {
+            const url = `https://cdn.skypack.dev/${lib}`;
+            const res = await fetch(url);
+            if (!res.ok) throw 0;
+
+            const blob = await res.blob();
+            zip.file(`${lib}.js`, blob);
+            document.getElementById("log").textContent += "✔ " + lib + "\n";
+        } catch {
+            document.getElementById("log").textContent += "✘ " + lib + "\n";
+        }
+    }
+
+    const out = await zip.generateAsync({ type: "blob" });
+    download(out, "skypack_bundle.zip");
+}
+
+function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+}
+</script>
+</body>
+</html>

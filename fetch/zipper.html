@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>jsDelivr All Versions Downloader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<h2>jsDelivr – Download ALL Versions</h2>
+
+<textarea id="pkgs" rows="6" style="width:100%">
+react
+lodash
+axios
+</textarea>
+
+<br><br>
+<button onclick="start()">Start Download</button>
+<p id="status"></p>
+
+<script>
+async function fetchJSON(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Fetch failed");
+    return r.json();
+}
+
+async function start() {
+    const pkgs = document.getElementById("pkgs").value
+        .split("\n").map(x => x.trim()).filter(Boolean);
+
+    const zip = new JSZip();
+    const status = document.getElementById("status");
+
+    let count = 0;
+    let batch = 1;
+
+    for (const pkg of pkgs) {
+        status.textContent = `Fetching ${pkg}...`;
+
+        const meta = await fetchJSON(`https://data.jsdelivr.com/v1/package/npm/${pkg}`);
+        const versions = meta.versions;
+
+        for (const version of versions) {
+            const files = await fetchJSON(`https://data.jsdelivr.com/v1/package/npm/${pkg}@${version}`);
+
+            for (const f of files.files) {
+                if (!f.name.endsWith(".min.js")) continue;
+
+                const url = `https://cdn.jsdelivr.net/npm/${pkg}@${version}/${f.name}`;
+                const res = await fetch(url);
+                const blob = await res.blob();
+
+                zip.file(`${pkg}/${version}/${f.name}`, blob);
+                count++;
+
+                // save every 100 files
+                if (count % 100 === 0) {
+                    status.textContent = `Saving batch ${batch}...`;
+                    const out = await zip.generateAsync({ type: "blob" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(out);
+                    a.download = `jslibs_part_${batch}.zip`;
+                    a.click();
+
+                    zip.files = {};
+                    batch++;
+                }
+            }
+        }
+    }
+
+    if (Object.keys(zip.files).length) {
+        const out = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(out);
+        a.download = `jslibs_part_${batch}.zip`;
+        a.click();
+    }
+
+    status.textContent = "DONE.";
+}
+</script>
+
+</body>
+</html>

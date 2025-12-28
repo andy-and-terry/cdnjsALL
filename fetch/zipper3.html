@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>UNPKG Downloader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<h2>UNPKG Downloader</h2>
+
+<textarea id="libs" rows="8" style="width:100%">
+react
+lodash
+axios
+</textarea>
+
+<br>
+<button onclick="start()">Download</button>
+
+<pre id="log"></pre>
+
+<script>
+const log = m => document.getElementById("log").textContent += m + "\n";
+
+async function start() {
+    const libs = document.getElementById("libs").value
+        .split("\n").map(x => x.trim()).filter(Boolean);
+
+    const zip = new JSZip();
+
+    for (const lib of libs) {
+        try {
+            const url = `https://unpkg.com/${lib}/`;
+            const res = await fetch(url);
+            if (!res.ok) throw "skip";
+
+            const text = await res.text();
+            const match = text.match(/href="([^"]+\.min\.js)"/);
+
+            if (!match) continue;
+
+            const fileUrl = `https://unpkg.com/${lib}/${match[1]}`;
+            const file = await fetch(fileUrl).then(r => r.blob());
+
+            zip.file(`${lib}/${match[1]}`, file);
+            log(`✔ ${lib}`);
+        } catch {
+            log(`✘ ${lib}`);
+        }
+    }
+
+    const out = await zip.generateAsync({ type: "blob" });
+    download(out, "unpkg_bundle.zip");
+}
+
+function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+}
+</script>
+</body>
+</html>

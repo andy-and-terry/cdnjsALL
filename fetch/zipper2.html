@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CDNJS Bulk Downloader</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+textarea {
+    width: 100%;
+    height: 140px;
+}
+button {
+    margin-top: 10px;
+    padding: 10px 15px;
+}
+#status {
+    margin-top: 10px;
+    font-family: monospace;
+}
+</style>
+</head>
+
+<body>
+
+<h2>CDNJS Bulk Downloader</h2>
+
+<p>Library names (one per line):</p>
+
+<textarea id="libs">
+jquery
+lodash
+moment
+axios
+chart.js
+</textarea>
+
+<br>
+<button onclick="start()">Start Download</button>
+
+<div id="status"></div>
+
+<script>
+async function fetchJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+}
+
+async function start() {
+    const status = document.getElementById("status");
+    const libs = document.getElementById("libs").value
+        .split("\n")
+        .map(x => x.trim())
+        .filter(Boolean);
+
+    const zip = new JSZip();
+    let fileCount = 0;
+    let batch = 1;
+
+    for (const lib of libs) {
+        status.textContent = `Fetching ${lib}...`;
+
+        let meta;
+        try {
+            meta = await fetchJSON(`https://api.cdnjs.com/libraries/${lib}`);
+        } catch (e) {
+            console.warn("Skipping", lib);
+            continue;
+        }
+
+        for (const asset of meta.assets) {
+            const version = asset.version;
+
+            for (const file of asset.files) {
+                // only minified JS (safe + small)
+                if (!file.endsWith(".min.js")) continue;
+
+                const url = `https://cdnjs.cloudflare.com/ajax/libs/${lib}/${version}/${file}`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+
+                    const blob = await res.blob();
+                    zip.file(`${lib}/${version}/${file}`, blob);
+                    fileCount++;
+
+                    // Save every 100 files
+                    if (fileCount % 100 === 0) {
+                        status.textContent = `Saving batch ${batch} (${fileCount} files)...`;
+                        const out = await zip.generateAsync({ type: "blob" });
+                        downloadBlob(out, `cdnjs_part_${batch}.zip`);
+                        batch++;
+                        zip.files = {};
+                    }
+                } catch {}
+            }
+        }
+    }
+
+    if (Object.keys(zip.files).length > 0) {
+        const out = await zip.generateAsync({ type: "blob" });
+        downloadBlob(out, `cdnjs_part_${batch}.zip`);
+    }
+
+    status.textContent = "DONE ✔";
+}
+
+function downloadBlob(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}
+</script>
+
+</body>
+</html>

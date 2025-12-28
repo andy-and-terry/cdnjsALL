@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GitHub Raw Downloader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<h2>GitHub Raw Downloader</h2>
+
+<textarea id="files" rows="8" style="width:100%">
+jquery/jquery/main/dist/jquery.min.js
+</textarea>
+
+<br>
+<button onclick="start()">Download</button>
+
+<pre id="log"></pre>
+
+<script>
+async function start() {
+    const files = document.getElementById("files").value
+        .split("\n").map(x => x.trim()).filter(Boolean);
+
+    const zip = new JSZip();
+
+    for (const path of files) {
+        const url = `https://raw.githubusercontent.com/${path}`;
+        try {
+            const r = await fetch(url);
+            if (!r.ok) throw "fail";
+
+            const blob = await r.blob();
+            zip.file(path, blob);
+            document.getElementById("log").textContent += "✔ " + path + "\n";
+        } catch {
+            document.getElementById("log").textContent += "✘ " + path + "\n";
+        }
+    }
+
+    const out = await zip.generateAsync({ type: "blob" });
+    download(out, "github_raw.zip");
+}
+
+function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+}
+</script>
+</body>
+</html>
